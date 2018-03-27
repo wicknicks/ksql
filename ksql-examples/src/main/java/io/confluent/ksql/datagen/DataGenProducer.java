@@ -57,8 +57,11 @@ public abstract class DataGenProducer {
       final String kafkaTopicName,
       final String key,
       final int messageCount,
-      final long maxInterval
-  ) {
+      final long maxInterval,
+      final boolean printRows,
+      final TimestampGenerator timestampGenerator,
+      final TokenBucket tokenBucket
+  ) throws InterruptedException {
     final Schema avroSchema = generator.schema();
     if (avroSchema.getField(key) == null) {
       throw new IllegalArgumentException("Key field does not exist:" + key);
@@ -78,33 +81,51 @@ public abstract class DataGenProducer {
 
     final SessionManager sessionManager = new SessionManager();
 
+    int tokens = 0;
+
     for (int i = 0; i < messageCount; i++) {
+      if (tokenBucket != null) {
+        if (tokens == 0) {
+          tokens = tokenBucket.take(10);
+        }
+        tokens -= 1;
+      }
 
       final Pair<String, GenericRow> genericRowPair = generateOneGenericRow(
           generator, avroData, avroSchema, ksqlSchema, sessionManager, key);
 
-      final ProducerRecord<String, GenericRow> producerRecord = new ProducerRecord<>(
-          kafkaTopicName,
-          genericRowPair.getLeft(),
-          genericRowPair.getRight()
-      );
+      final ProducerRecord<String, GenericRow> producerRecord;
+      if (timestampGenerator == null) {
+          producerRecord = new ProducerRecord<>(
+              kafkaTopicName,
+              genericRowPair.getLeft(),
+              genericRowPair.getRight());
+      } else {
+          producerRecord = new ProducerRecord<>(
+              kafkaTopicName,
+              null,
+              timestampGenerator.next(),
+              genericRowPair.getLeft(),
+              genericRowPair.getRight());
+      }
       producer.send(producerRecord,
           new ErrorLoggingCallback(kafkaTopicName,
               genericRowPair.getLeft(),
               genericRowPair.getRight()));
-
-      try {
-        final long interval = maxInterval < 0 ? INTER_MESSAGE_MAX_INTERVAL : maxInterval;
-
-        Thread.sleep((long) (interval * Math.random()));
-      } catch (final InterruptedException e) {
-        // Ignore the exception.
+      if (printRows) {
+        System.err.println(producerRecord.key() + " --> (" + producerRecord.value() + ")");
+      }
+      if (maxInterval > 0) {
+        try {
+          Thread.sleep((long) (maxInterval * Math.random()));
+        } catch (InterruptedException e) {
+          // Ignore the exception.
+        }
       }
     }
     producer.flush();
     producer.close();
   }
-
 
   // For test purpose.
   protected Pair<String, GenericRow> generateOneGenericRow(
