@@ -118,7 +118,7 @@ public abstract class DataGenProducer {
       if (maxInterval > 0) {
         try {
           Thread.sleep((long) (maxInterval * Math.random()));
-        } catch (InterruptedException e) {
+        } catch (final InterruptedException e) {
           // Ignore the exception.
         }
       }
@@ -150,7 +150,7 @@ public abstract class DataGenProducer {
 
     SimpleDateFormat timeformatter = null;
 
-    /**
+    /*
      * Populate the record entries
      */
     String sessionisationValue = null;
@@ -229,8 +229,6 @@ public abstract class DataGenProducer {
         System.err.println("Error when sending message to topic: '" + topic + "', with key: '"
             + keyString + "', and value: '" + valueString + "'");
         e.printStackTrace(System.err);
-      } else {
-        System.out.println(keyString + " --> (" + valueString + ") ts:" + metadata.timestamp());
       }
     }
   }
