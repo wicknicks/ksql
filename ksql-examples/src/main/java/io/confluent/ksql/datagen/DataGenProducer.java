@@ -96,17 +96,17 @@ public abstract class DataGenProducer {
 
       final ProducerRecord<String, GenericRow> producerRecord;
       if (timestampGenerator == null) {
-          producerRecord = new ProducerRecord<>(
-              kafkaTopicName,
-              genericRowPair.getLeft(),
-              genericRowPair.getRight());
+        producerRecord = new ProducerRecord<>(
+            kafkaTopicName,
+            genericRowPair.getLeft(),
+            genericRowPair.getRight());
       } else {
-          producerRecord = new ProducerRecord<>(
-              kafkaTopicName,
-              null,
-              timestampGenerator.next(),
-              genericRowPair.getLeft(),
-              genericRowPair.getRight());
+        producerRecord = new ProducerRecord<>(
+            kafkaTopicName,
+            null,
+            timestampGenerator.next(),
+            genericRowPair.getLeft(),
+            genericRowPair.getRight());
       }
       producer.send(producerRecord,
           new ErrorLoggingCallback(kafkaTopicName,

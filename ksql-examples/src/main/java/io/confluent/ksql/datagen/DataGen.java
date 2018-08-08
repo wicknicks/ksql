@@ -24,12 +24,12 @@ import java.io.InputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Random;
-import java.util.List;
-import java.util.LinkedList;
 
 public final class DataGen {
 
@@ -118,7 +118,7 @@ public final class DataGen {
   }
 
   private static String readSchema(InputStream schemaFile) {
-    String schema = "";
+    final StringBuilder schemaStringBuilder = new StringBuilder();
     while (true) {
       byte[] b = new byte[256];
       int ret = 0;
@@ -131,9 +131,9 @@ public final class DataGen {
       if (ret < 0) {
         break;
       }
-      schema += new String(b, Charset.forName("UTF-8"));
+      schemaStringBuilder.append(new String(b, Charset.forName("UTF-8")));
     }
-    return schema;
+    return schemaStringBuilder.toString();
   }
 
   static void run(final String... args) throws IOException {
@@ -146,11 +146,11 @@ public final class DataGen {
       return;
     }
 
-    final DataGenProducer dataProducer = buildDatagenProducer(arguments);
+    final DataGenProducer dataProducer = getProducer(arguments);
     final Properties props = getProperties(arguments);
     final String schema = readSchema(arguments.schemaFile);
-    final TokenBucket tokenBucket = arguments.msgRate != -1 ?
-      new TokenBucket(arguments.msgRate, arguments.msgRate) : null;
+    final TokenBucket tokenBucket = arguments.msgRate != -1
+        ? new TokenBucket(arguments.msgRate, arguments.msgRate) : null;
 
     final List<Thread> threads = new LinkedList<>();
     for (int i = 0; i < arguments.numThreads; i++) {
@@ -206,7 +206,7 @@ public final class DataGen {
     private final long timeBurst;
     private final int msgRate;
 
-    public Arguments(final Builder builder) {
+    Arguments(final Builder builder) {
       this.help = builder.help;
       this.bootstrapServer = builder.bootstrapServer;
       this.schemaFile = builder.schemaFile;
