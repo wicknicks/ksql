@@ -16,7 +16,6 @@
 
 package io.confluent.ksql.datagen;
 
-import io.confluent.avro.random.generator.Generator;
 import io.confluent.connect.avro.AvroData;
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.util.KsqlException;

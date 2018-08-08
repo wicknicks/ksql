@@ -16,7 +16,6 @@
 
 package io.confluent.ksql.datagen;
 
-import io.confluent.avro.random.generator.Generator;
 import io.confluent.ksql.util.KsqlConfig;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -77,7 +76,7 @@ public final class DataGen {
     }
 
     final Generator generator;
-    generator = new Generator(schema, new Random());
+    generator = new Generator(schema, new Random(), true);
 
     Thread t = new Thread(() -> {
       try {

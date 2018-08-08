@@ -50,12 +50,6 @@
             <version>${hamcrest.version}</version>
             <scope>test</scope>
         </dependency>
-
-        <dependency>
-            <groupId>io.confluent.avro</groupId>
-            <artifactId>avro-random-generator</artifactId>
-            <version>${avro.random.generator.version}</version>
-        </dependency>
     </dependencies>
 
     <build>

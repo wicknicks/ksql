@@ -19,7 +19,6 @@ package io.confluent.ksql.datagen;
 import static io.confluent.ksql.datagen.util.ResourceUtil.getResourceRoot;
 import static io.confluent.ksql.datagen.util.ResourceUtil.loadContent;
 
-import io.confluent.avro.random.generator.Generator;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
