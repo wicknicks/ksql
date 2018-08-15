@@ -31,6 +31,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
+
 import org.apache.kafka.streams.KafkaClientSupplier;
 import org.apache.kafka.streams.processor.internals.DefaultKafkaClientSupplier;
 import org.slf4j.Logger;
@@ -45,18 +47,26 @@ public class KsqlContext {
   public static KsqlContext create(final KsqlConfig ksqlConfig) {
     return create(
         ksqlConfig,
-        new KsqlSchemaRegistryClientFactory(ksqlConfig).create());
+        new KsqlSchemaRegistryClientFactory(ksqlConfig),
+        new KsqlSchemaRegistryClientFactory(ksqlConfig).get());
   }
 
   public static KsqlContext create(
       final KsqlConfig ksqlConfig,
+      final Supplier<SchemaRegistryClient> schemaRegistryClientFactory,
       final SchemaRegistryClient schemaRegistryClient
   ) {
-    return create(ksqlConfig, schemaRegistryClient, new DefaultKafkaClientSupplier());
+    return create(
+        ksqlConfig,
+        schemaRegistryClientFactory,
+        schemaRegistryClient,
+        new DefaultKafkaClientSupplier()
+    );
   }
 
   public static KsqlContext create(
       final KsqlConfig ksqlConfig,
+      final Supplier<SchemaRegistryClient> schemaRegistryClientFactory,
       final SchemaRegistryClient schemaRegistryClient,
       final KafkaClientSupplier clientSupplier
   ) {
@@ -67,6 +77,7 @@ public class KsqlContext {
     final MetaStore metaStore = new MetaStoreImpl(new InternalFunctionRegistry());
     final KsqlEngine engine = new KsqlEngine(
         kafkaTopicClient,
+        schemaRegistryClientFactory,
         schemaRegistryClient,
         clientSupplier,
         metaStore,

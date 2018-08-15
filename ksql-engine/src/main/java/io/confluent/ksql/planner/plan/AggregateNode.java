@@ -46,6 +46,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
@@ -173,7 +174,7 @@ public class AggregateNode extends PlanNode {
       final KafkaTopicClient kafkaTopicClient,
       final FunctionRegistry functionRegistry,
       final Map<String, Object> props,
-      final SchemaRegistryClient schemaRegistryClient
+      final Supplier<SchemaRegistryClient> schemaRegistryClientFactory
   ) {
     final StructuredDataSourceNode streamSourceNode = getTheSourceNode();
     final SchemaKStream sourceSchemaKStream = getSource().buildStream(
@@ -182,7 +183,7 @@ public class AggregateNode extends PlanNode {
         kafkaTopicClient,
         functionRegistry,
         props,
-        schemaRegistryClient
+        schemaRegistryClientFactory
     );
 
     // Pre aggregate computations
@@ -199,7 +200,7 @@ public class AggregateNode extends PlanNode {
         aggregateArgExpanded.getSchema(),
         ksqlConfig,
         true,
-        schemaRegistryClient
+        schemaRegistryClientFactory
     );
 
     final List<Expression> internalGroupByColumns = internalSchema.getInternalExpressionList(
@@ -226,7 +227,7 @@ public class AggregateNode extends PlanNode {
         aggStageSchema,
         ksqlConfig,
         true,
-        schemaRegistryClient
+        schemaRegistryClientFactory
     );
 
     final KudafInitializer initializer = new KudafInitializer(aggValToValColumnMap.size());
@@ -252,7 +253,7 @@ public class AggregateNode extends PlanNode {
         SchemaKStream.Type.AGGREGATE,
         ksqlConfig,
         functionRegistry,
-        schemaRegistryClient
+        schemaRegistryClientFactory.get()
     );
 
     if (getHavingExpressions() != null) {
