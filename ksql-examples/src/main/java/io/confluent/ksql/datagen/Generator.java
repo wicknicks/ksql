@@ -1185,7 +1185,7 @@ public class Generator {
     byte[] bytes = new byte[length];
     ThreadLocalRandom tlRandom = ThreadLocalRandom.current();
     for (int i = 0; i < length; i++) {
-      bytes[i] = (byte) tlRandom.nextInt(128);
+      bytes[i] = (byte) (((int)'a') + tlRandom.nextInt(128) % 26);
     }
     return new String(bytes, StandardCharsets.US_ASCII);
   }

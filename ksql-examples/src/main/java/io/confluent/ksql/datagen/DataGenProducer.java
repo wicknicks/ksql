@@ -23,19 +23,15 @@ import io.confluent.ksql.serde.avro.AvroSchemaTranslator;
 import io.confluent.ksql.util.KsqlException;
 import io.confluent.ksql.util.Pair;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
 import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.avro.Schema;
-import org.apache.avro.generic.GenericData.Record;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -46,12 +42,8 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
-import org.apache.kafka.connect.data.Struct;
 
 public abstract class DataGenProducer {
-
-  // Max 100 ms between messsages.
-  public static final long INTER_MESSAGE_MAX_INTERVAL = 500;
 
   public void populateTopic(
       final Properties props,
@@ -383,41 +375,4 @@ public abstract class DataGenProducer {
         throw new KsqlException("Unsupported type: " + schema);
     }
   }
-
-  private Object getOptionalValue(
-      final org.apache.kafka.connect.data.Schema schema,
-      final Object value) {
-    switch (schema.type()) {
-      case BOOLEAN:
-      case INT32:
-      case INT64:
-      case FLOAT64:
-      case STRING:
-        return value;
-      case ARRAY:
-        final List<?> list = (List<?>) value;
-        return list.stream().map(listItem -> getOptionalValue(schema.valueSchema(), listItem))
-            .collect(Collectors.toList());
-      case MAP:
-        final Map<?, ?> map = (Map<?, ?>) value;
-        return map.entrySet().stream()
-            .collect(Collectors.toMap(
-                k -> getOptionalValue(schema.keySchema(), k),
-                v -> getOptionalValue(schema.valueSchema(), v)
-            ));
-      case STRUCT:
-        final Struct struct = (Struct) value;
-        final Struct optionalStruct = new Struct(getOptionalSchema(schema));
-        for (final Field field : schema.fields()) {
-          optionalStruct
-              .put(field.name(), getOptionalValue(field.schema(), struct.get(field.name())));
-        }
-        return optionalStruct;
-
-      default:
-        throw new KsqlException("Invalid value schema: " + schema + ", value = " + value);
-    }
-  }
-=======
->>>>>>> use ksql translators
 }
