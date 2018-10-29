@@ -59,6 +59,9 @@ import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
+import org.apache.kafka.streams.state.RocksDBConfigSetter;
+import org.rocksdb.BlockBasedTableConfig;
+import org.rocksdb.Options;
 
 public class PhysicalPlanBuilder {
 
@@ -341,6 +344,19 @@ public class PhysicalPlanBuilder {
     properties.put(key, valueList);
   }
 
+  public static class KsqlRocksDBConfigSetter implements RocksDBConfigSetter {
+    @Override
+    public void setConfig(
+        final String storeName,
+        final Options options,
+        final Map<String, Object> configs) {
+      final BlockBasedTableConfig tableConfig = new BlockBasedTableConfig();
+      tableConfig.setNoBlockCache(true);
+      tableConfig.setBlockSize(4096);
+      options.setTableFormatConfig(tableConfig);
+    }
+  }
+
   private KafkaStreams buildStreams(
       final StreamsBuilder builder,
       final String applicationId,
@@ -352,6 +368,8 @@ public class PhysicalPlanBuilder {
     newStreamsProperties.putAll(overriddenProperties);
     newStreamsProperties.put(StreamsConfig.APPLICATION_ID_CONFIG, applicationId);
     newStreamsProperties.put(StreamsConfig.TOPOLOGY_OPTIMIZATION, StreamsConfig.NO_OPTIMIZATION);
+    newStreamsProperties.put(
+        StreamsConfig.ROCKSDB_CONFIG_SETTER_CLASS_CONFIG, KsqlRocksDBConfigSetter.class);
 
     updateListProperty(
         newStreamsProperties,
