@@ -37,12 +37,12 @@ public class CommandRunner implements Runnable, Closeable {
   private static final Logger log = LoggerFactory.getLogger(CommandRunner.class);
 
   private final StatementExecutor statementExecutor;
-  private final CommandStore commandStore;
+  private final ReplayableCommandQueue commandStore;
   private final AtomicBoolean closed;
 
   public CommandRunner(
       final StatementExecutor statementExecutor,
-      final CommandStore commandStore
+      final ReplayableCommandQueue commandStore
   ) {
     this.statementExecutor = statementExecutor;
     this.commandStore = commandStore;
@@ -74,7 +74,9 @@ public class CommandRunner implements Runnable, Closeable {
   @Override
   public void close() {
     closed.set(true);
-    commandStore.close();
+    if (commandStore instanceof CommandStore) {
+      ((CommandStore)commandStore).close();
+    }
   }
 
   void fetchAndRunCommands() {

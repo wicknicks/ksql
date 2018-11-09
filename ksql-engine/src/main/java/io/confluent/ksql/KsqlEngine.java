@@ -151,13 +151,31 @@ public class KsqlEngine implements Closeable {
 
   }
 
-  // called externally by tests only
   KsqlEngine(final KafkaTopicClient topicClient,
-             final Supplier<SchemaRegistryClient> schemaRegistryClientFactory,
-             final KafkaClientSupplier clientSupplier,
-             final MetaStore metaStore,
-             final KsqlConfig initializationKsqlConfig,
-             final AdminClient adminClient
+      final Supplier<SchemaRegistryClient> schemaRegistryClientFactory,
+      final KafkaClientSupplier clientSupplier,
+      final MetaStore metaStore,
+      final KsqlConfig initializationKsqlConfig,
+      final AdminClient adminClient) {
+    this(
+        topicClient,
+        schemaRegistryClientFactory,
+        clientSupplier,
+        metaStore,
+        initializationKsqlConfig,
+        adminClient,
+        Optional.empty()
+    );
+  }
+
+  // called externally by tests only
+  public KsqlEngine(final KafkaTopicClient topicClient,
+                    final Supplier<SchemaRegistryClient> schemaRegistryClientFactory,
+                    final KafkaClientSupplier clientSupplier,
+                    final MetaStore metaStore,
+                    final KsqlConfig initializationKsqlConfig,
+                    final AdminClient adminClient,
+                    final Optional<KsqlEngineMetrics> engineMetrics
   ) {
     this.metaStore = Objects.requireNonNull(metaStore, "metaStore can't be null");
     this.topicClient = Objects.requireNonNull(topicClient, "topicClient can't be null");
@@ -176,12 +194,13 @@ public class KsqlEngine implements Closeable {
     this.persistentQueries = new HashMap<>();
     this.livePersistentQueries = new HashSet<>();
     this.allLiveQueries = new HashSet<>();
-    this.engineMetrics = new KsqlEngineMetrics("ksql-engine", this);
+    this.engineMetrics = engineMetrics.orElseGet(
+        () -> new KsqlEngineMetrics("ksql-engine", this));
     this.aggregateMetricsCollector = Executors.newSingleThreadScheduledExecutor();
     this.queryIdGenerator = new QueryIdGenerator();
     this.adminClient = Objects.requireNonNull(adminClient, "adminCluent can't be null");
     aggregateMetricsCollector.scheduleAtFixedRate(
-        engineMetrics::updateMetrics,
+        this.engineMetrics::updateMetrics,
         1000,
         1000,
         TimeUnit.MILLISECONDS
