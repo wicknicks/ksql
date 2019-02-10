@@ -130,11 +130,10 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
       addAvroSchemaToResultTopic(outputNodeBuilder);
     }
 
-    final SchemaKStream<?> result = createOutputStream(
+
+    final SchemaKStream<?> schemaKStreamWithFinalKey = maybeSelectKey(
         schemaKStream,
         outputNodeBuilder,
-        ksqlConfig,
-        functionRegistry,
         outputProperties,
         contextStacker
     );
@@ -150,11 +149,11 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
       createSinkTopic(
           noRowKey.getKafkaTopicName(),
           serviceContext.getTopicClient(),
-          shouldBeCompacted(result),
+          shouldBeCompacted(schemaKStreamWithFinalKey),
           sourceTopicProperties.partitions,
           sourceTopicProperties.replicas);
     }
-    result.into(
+    final SchemaKStream result = schemaKStreamWithFinalKey.into(
         noRowKey.getKafkaTopicName(),
         noRowKey.getKsqlTopic().getKsqlTopicSerDe()
             .getGenericRowSerde(
@@ -164,7 +163,8 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
                 serviceContext.getSchemaRegistryClientFactory(),
                 QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
                 processingLogContext),
-        rowkeyIndexes
+        rowkeyIndexes,
+        contextStacker
     );
 
     result.setOutputNode(
@@ -181,11 +181,9 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
   }
 
   @SuppressWarnings("unchecked")
-  private SchemaKStream<?> createOutputStream(
+  private SchemaKStream<?> maybeSelectKey(
       final SchemaKStream schemaKStream,
       final KsqlStructuredDataOutputNode.Builder outputNodeBuilder,
-      final KsqlConfig ksqlConfig,
-      final FunctionRegistry functionRegistry,
       final Map<String, Object> outputProperties,
       final QueryContext.Stacker contextStacker
   ) {
@@ -194,16 +192,10 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
       return schemaKStream;
     }
 
-    final SchemaKStream result = new SchemaKStream(
+    final SchemaKStream result = schemaKStream.overwriteSchema(
         getSchema(),
-        schemaKStream.getKstream(),
         this.getKeyField(),
-        Collections.singletonList(schemaKStream),
-        schemaKStream.getKeySerdeFactory(),
-        SchemaKStream.Type.SINK,
-        ksqlConfig,
-        functionRegistry,
-        contextStacker.getQueryContext()
+        contextStacker  // TODO(add context?)
     );
 
     if (outputProperties.containsKey(DdlConfig.PARTITION_BY_PROPERTY)) {

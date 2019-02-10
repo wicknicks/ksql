@@ -20,9 +20,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import io.confluent.ksql.function.FunctionRegistry;
 import io.confluent.ksql.logging.processing.ProcessingLogContext;
 import io.confluent.ksql.query.QueryId;
+import io.confluent.ksql.serde.DataSource.DataSourceType;
 import io.confluent.ksql.services.ServiceContext;
 import io.confluent.ksql.structured.QueuedSchemaKStream;
 import io.confluent.ksql.structured.SchemaKStream;
+import io.confluent.ksql.structured.SchemaKTable;
 import io.confluent.ksql.util.KsqlConfig;
 import io.confluent.ksql.util.QueryIdGenerator;
 import io.confluent.ksql.util.timestamp.TimestampExtractionPolicy;
@@ -76,7 +78,8 @@ public class KsqlBareOutputNode extends OutputNode {
 
     final QueuedSchemaKStream<?> queued = new QueuedSchemaKStream<>(
         schemaKStream,
-        buildNodeContext(queryId).getQueryContext()
+        buildNodeContext(queryId).getQueryContext(),
+        schemaKStream instanceof SchemaKTable ? DataSourceType.KTABLE : DataSourceType.KSTREAM
     );
 
     queued.setOutputNode(this);

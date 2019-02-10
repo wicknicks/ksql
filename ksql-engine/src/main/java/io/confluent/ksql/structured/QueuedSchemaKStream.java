@@ -18,6 +18,7 @@ package io.confluent.ksql.structured;
 import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.logging.processing.ProcessingLogContext;
 import io.confluent.ksql.parser.tree.Expression;
+import io.confluent.ksql.serde.DataSource.DataSourceType;
 import io.confluent.ksql.util.SelectExpression;
 import java.util.List;
 import java.util.Set;
@@ -28,28 +29,33 @@ import org.apache.kafka.streams.kstream.KStream;
 
 public class QueuedSchemaKStream<K> extends SchemaKStream<K> {
 
+  private final DataSourceType dataSourceType;
+
   public QueuedSchemaKStream(
       final SchemaKStream<K> schemaKStream,
-      final QueryContext queryContext
-  ) {
+      final QueryContext queryContext,
+      final DataSourceType dataSourceType) {
     super(
-        schemaKStream.schema,
         schemaKStream.getKstream(),
-        schemaKStream.keyField,
-        schemaKStream.sourceSchemaKStreams,
         schemaKStream.keySerdeFactory,
-        Type.SINK,
         schemaKStream.ksqlConfig,
         schemaKStream.functionRegistry,
-        queryContext
+        queryContext,
+        schemaKStream.executionStep
     );
+    this.dataSourceType = dataSourceType;
+  }
+
+  public DataSourceType getDataSourceType() {
+    return dataSourceType;
   }
 
   @Override
   public SchemaKStream<K> into(
       final String kafkaTopicName,
       final Serde<GenericRow> topicValueSerDe,
-      final Set<Integer> rowkeyIndexes
+      final Set<Integer> rowkeyIndexes,
+      final QueryContext.Stacker contextStacker
   ) {
     throw new UnsupportedOperationException();
   }
@@ -110,10 +116,5 @@ public class QueuedSchemaKStream<K> extends SchemaKStream<K> {
   @Override
   public KStream<K, GenericRow> getKstream() {
     return super.getKstream();
-  }
-
-  @Override
-  public List<SchemaKStream> getSourceSchemaKStreams() {
-    return super.getSourceSchemaKStreams();
   }
 }

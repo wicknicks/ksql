@@ -199,8 +199,6 @@ public class PhysicalPlanBuilder {
 
     final KafkaStreams streams = kafkaStreamsBuilder.buildKafkaStreams(builder, streamsProperties);
 
-    final SchemaKStream sourceSchemaKstream = schemaKStream.getSourceSchemaKStreams().get(0);
-
     return new QueuedQueryMetadata(
         statement,
         streams,
@@ -209,8 +207,7 @@ public class PhysicalPlanBuilder {
         queue::setLimitHandler,
         schemaKStream.getExecutionPlan(""),
         queue.getQueue(),
-        (sourceSchemaKstream instanceof SchemaKTable)
-            ? DataSource.DataSourceType.KTABLE : DataSource.DataSourceType.KSTREAM,
+        schemaKStream.getDataSourceType(),
         applicationId,
         builder.build(),
         streamsProperties,

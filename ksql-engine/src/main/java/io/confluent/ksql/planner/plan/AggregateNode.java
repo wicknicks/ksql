@@ -75,6 +75,7 @@ public class AggregateNode extends PlanNode {
   private static final String GROUP_BY_OP_NAME = "groupby";
   private static final String FILTER_OP_NAME = "filter";
   private static final String PROJECT_OP_NAME = "project";
+  private static final String OVERWRITE_SCHEMA_OP_NAME = "overwrite_schema";
 
   private final PlanNode source;
   private final Schema schema;
@@ -225,8 +226,10 @@ public class AggregateNode extends PlanNode {
 
     final SchemaKGroupedStream schemaKGroupedStream =
         aggregateArgExpanded.groupBy(
-            genericRowSerde, internalGroupByColumns,
-            groupByContext);
+            genericRowSerde,
+            internalGroupByColumns,
+            groupByContext
+        );
 
     // Aggregate computations
     final Map<Integer, Integer> aggValToValColumnMap = createAggregateValueToValueColumnMap(
@@ -265,16 +268,9 @@ public class AggregateNode extends PlanNode {
         aggValueGenericRowSerde,
         aggregationContext);
 
-    SchemaKTable<?> result = new SchemaKTable<>(
+    SchemaKTable<?> result = schemaKTable.overwriteSchema(
         aggStageSchema,
-        schemaKTable.getKtable(),
-        schemaKTable.getKeyField(),
-        schemaKTable.getSourceSchemaKStreams(),
-        schemaKTable.getKeySerdeFactory(),
-        SchemaKStream.Type.AGGREGATE,
-        ksqlConfig,
-        functionRegistry,
-        aggregationContext.getQueryContext()
+        contextStacker.push(OVERWRITE_SCHEMA_OP_NAME)
     );
 
     if (havingExpressions != null) {

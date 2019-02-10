@@ -39,8 +39,8 @@
     {
       "name": "Json Map filter",
       "statements": [
-        "CREATE STREAM TEST (ID bigint, THING MAP<VARCHAR, VARCHAR>) WITH (kafka_topic='test_topic', value_format='JSON');",
-        "CREATE STREAM S1 as SELECT ID FROM TEST WHERE THING['status']='false';"
+        "CREATE STREAM TEST (ID bigint, THING MAP<INTEGER, VARCHAR>) WITH (kafka_topic='test_topic', value_format='JSON');",
+        "CREATE STREAM S1 as SELECT ID FROM TEST WHERE THING[3]='false';"
       ],
       "inputs": [
         {"topic": "test_topic", "key": 0, "value": {"id": 1, "thing": {"other": 11, "status": false}}},
