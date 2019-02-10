@@ -24,8 +24,11 @@ import io.confluent.ksql.parser.tree.KsqlWindowExpression;
 import io.confluent.ksql.parser.tree.WindowExpression;
 import io.confluent.ksql.streams.MaterializedFactory;
 import io.confluent.ksql.streams.StreamsUtil;
+import io.confluent.ksql.structured.execution.ExecutionStep;
+import io.confluent.ksql.structured.execution.ExecutionStepProperties;
+import io.confluent.ksql.structured.execution.StreamAggregate;
 import io.confluent.ksql.util.KsqlConfig;
-import java.util.List;
+import io.confluent.ksql.util.QueryLoggerUtil;
 import java.util.Map;
 import java.util.Objects;
 import org.apache.kafka.common.serialization.Serde;
@@ -44,53 +47,47 @@ import org.apache.kafka.streams.state.WindowStore;
 
 public class SchemaKGroupedStream {
 
-  final Schema schema;
   final KGroupedStream kgroupedStream;
-  final Field keyField;
-  final List<SchemaKStream> sourceSchemaKStreams;
   final KsqlConfig ksqlConfig;
   final FunctionRegistry functionRegistry;
   final MaterializedFactory materializedFactory;
+  final ExecutionStep executionStep;
 
   SchemaKGroupedStream(
-      final Schema schema,
       final KGroupedStream kgroupedStream,
-      final Field keyField,
-      final List<SchemaKStream> sourceSchemaKStreams,
       final KsqlConfig ksqlConfig,
-      final FunctionRegistry functionRegistry
+      final FunctionRegistry functionRegistry,
+      final ExecutionStep executionStep
   ) {
     this(
-        schema,
         kgroupedStream,
-        keyField,
-        sourceSchemaKStreams,
         ksqlConfig,
         functionRegistry,
-        MaterializedFactory.create(ksqlConfig)
+        MaterializedFactory.create(ksqlConfig),
+        executionStep
     );
   }
 
   SchemaKGroupedStream(
-      final Schema schema,
       final KGroupedStream kgroupedStream,
-      final Field keyField,
-      final List<SchemaKStream> sourceSchemaKStreams,
       final KsqlConfig ksqlConfig,
       final FunctionRegistry functionRegistry,
-      final MaterializedFactory materializedFactory
+      final MaterializedFactory materializedFactory,
+      final ExecutionStep executionStep
   ) {
-    this.schema = schema;
     this.kgroupedStream = kgroupedStream;
-    this.keyField = keyField;
-    this.sourceSchemaKStreams = sourceSchemaKStreams;
     this.ksqlConfig = Objects.requireNonNull(ksqlConfig, "ksqlConfig");
     this.functionRegistry = functionRegistry;
     this.materializedFactory = materializedFactory;
+    this.executionStep = executionStep;
   }
 
   public Field getKeyField() {
-    return keyField;
+    return executionStep.getProperties().getKey().orElse(null);
+  }
+
+  public Schema getSchema() {
+    return executionStep.getProperties().getSchema();
   }
 
   @SuppressWarnings("unchecked")
@@ -125,15 +122,22 @@ public class SchemaKGroupedStream {
     }
 
     return new SchemaKTable(
-        schema,
         table,
-        keyField,
-        sourceSchemaKStreams,
         keySerde,
-        SchemaKStream.Type.AGGREGATE,
         ksqlConfig,
         functionRegistry,
-        contextStacker.getQueryContext());
+        contextStacker.getQueryContext(),
+        new StreamAggregate(
+            new ExecutionStepProperties(
+                QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
+                getSchema(),
+                getKeyField()
+            ),
+            executionStep,
+            aggValToFunctionMap,
+            aggValToValColumnMap
+        )
+    );
   }
 
   @SuppressWarnings("unchecked")

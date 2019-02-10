@@ -18,6 +18,7 @@ import io.confluent.ksql.GenericRow;
 import io.confluent.ksql.parser.tree.Expression;
 import io.confluent.ksql.planner.plan.OutputNode;
 import io.confluent.ksql.processing.log.ProcessingLogContext;
+import io.confluent.ksql.serde.DataSource.DataSourceType;
 import io.confluent.ksql.util.KsqlException;
 import io.confluent.ksql.util.SelectExpression;
 import java.util.List;
@@ -37,35 +38,42 @@ public class QueuedSchemaKStream<K> extends SchemaKStream<K> {
 
   private final BlockingQueue<KeyValue<String, GenericRow>> rowQueue =
       new LinkedBlockingQueue<>(100);
+  private final DataSourceType dataSourceType;
 
   @SuppressWarnings("unchecked") // needs investigating
-  QueuedSchemaKStream(final SchemaKStream<K> schemaKStream, final QueryContext queryContext) {
+  QueuedSchemaKStream(
+      final SchemaKStream<K> schemaKStream,
+      final QueryContext queryContext,
+      final DataSourceType dataSourceType) {
     super(
-        schemaKStream.schema,
         schemaKStream.getKstream(),
-        schemaKStream.keyField,
-        schemaKStream.sourceSchemaKStreams,
         schemaKStream.keySerde,
-        Type.SINK,
         schemaKStream.ksqlConfig,
         schemaKStream.functionRegistry,
-        queryContext
+        queryContext,
+        schemaKStream.executionStep
     );
 
     final OutputNode output = schemaKStream.outputNode();
     setOutputNode(output);
     kstream.foreach(new QueuedSchemaKStream.QueuePopulator(rowQueue, output.getCallback()));
+    this.dataSourceType = dataSourceType;
   }
 
   public BlockingQueue<KeyValue<String, GenericRow>> getQueue() {
     return rowQueue;
   }
 
+  public DataSourceType getDataSourceType() {
+    return dataSourceType;
+  }
+
   @Override
   public SchemaKStream<K> into(
       final String kafkaTopicName,
       final Serde<GenericRow> topicValueSerDe,
-      final Set<Integer> rowkeyIndexes
+      final Set<Integer> rowkeyIndexes,
+      final QueryContext.Stacker contextStacker
   ) {
     throw new UnsupportedOperationException();
   }
@@ -126,11 +134,6 @@ public class QueuedSchemaKStream<K> extends SchemaKStream<K> {
   @Override
   public KStream<K, GenericRow> getKstream() {
     return super.getKstream();
-  }
-
-  @Override
-  public List<SchemaKStream> getSourceSchemaKStreams() {
-    return super.getSourceSchemaKStreams();
   }
 
   @SuppressWarnings("OptionalUsedAsFieldOrParameterType")

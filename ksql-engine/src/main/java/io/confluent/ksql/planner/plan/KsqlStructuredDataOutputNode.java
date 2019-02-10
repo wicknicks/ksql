@@ -17,6 +17,7 @@ package io.confluent.ksql.planner.plan;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableMap;
+import edu.umd.cs.findbugs.annotations.SuppressFBWarnings;
 import io.confluent.ksql.ddl.DdlConfig;
 import io.confluent.ksql.function.FunctionRegistry;
 import io.confluent.ksql.metastore.KsqlTopic;
@@ -99,6 +100,7 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
   }
 
   @Override
+  @SuppressFBWarnings("RV_RETURN_VALUE_IGNORED_INFERRED")
   public SchemaKStream<?> buildStream(
       final StreamsBuilder builder,
       final KsqlConfig ksqlConfig,
@@ -135,11 +137,9 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
         KsqlConfig.SINK_NUMBER_OF_REPLICAS_PROPERTY,
         ksqlConfig.getShort(KsqlConfig.SINK_NUMBER_OF_REPLICAS_PROPERTY));
 
-    final SchemaKStream<?> result = createOutputStream(
+    final SchemaKStream<?> schemaKStreamWithFinalKey = maybeSelectKey(
         schemaKStream,
         outputNodeBuilder,
-        ksqlConfig,
-        functionRegistry,
         outputProperties,
         contextStacker
     );
@@ -149,11 +149,11 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
       createSinkTopic(
           noRowKey.getKafkaTopicName(),
           serviceContext.getTopicClient(),
-          shouldBeCompacted(result),
+          shouldBeCompacted(schemaKStreamWithFinalKey),
           partitions,
           replicas);
     }
-    result.into(
+    final SchemaKStream result = schemaKStreamWithFinalKey.into(
         noRowKey.getKafkaTopicName(),
         noRowKey.getKsqlTopic().getKsqlTopicSerDe()
             .getGenericRowSerde(
@@ -163,7 +163,8 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
                 serviceContext.getSchemaRegistryClientFactory(),
                 QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
                 processingLogContext),
-        rowkeyIndexes
+        rowkeyIndexes,
+        contextStacker
     );
 
     result.setOutputNode(
@@ -180,11 +181,9 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
   }
 
   @SuppressWarnings("unchecked")
-  private SchemaKStream<?> createOutputStream(
+  private SchemaKStream<?> maybeSelectKey(
       final SchemaKStream schemaKStream,
       final KsqlStructuredDataOutputNode.Builder outputNodeBuilder,
-      final KsqlConfig ksqlConfig,
-      final FunctionRegistry functionRegistry,
       final Map<String, Object> outputProperties,
       final QueryContext.Stacker contextStacker
   ) {
@@ -193,16 +192,10 @@ public class KsqlStructuredDataOutputNode extends OutputNode {
       return schemaKStream;
     }
 
-    final SchemaKStream result = new SchemaKStream(
+    final SchemaKStream result = schemaKStream.overwriteSchema(
         getSchema(),
-        schemaKStream.getKstream(),
-        this.getKeyField(),
-        Collections.singletonList(schemaKStream),
-        schemaKStream.getKeySerde(),
-        SchemaKStream.Type.SINK,
-        ksqlConfig,
-        functionRegistry,
-        contextStacker.getQueryContext()
+        getKeyField(),
+        contextStacker  // TODO(add context?)
     );
 
     if (outputProperties.containsKey(DdlConfig.PARTITION_BY_PROPERTY)) {

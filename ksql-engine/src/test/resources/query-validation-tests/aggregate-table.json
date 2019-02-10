@@ -47,7 +47,7 @@
         {"topic": "test_topic", "key": 3, "value": {"ID": 3, "NAME": "carol", "REGION": "west"}},
         {"topic": "test_topic", "key": 4, "value": {"ID": 4, "NAME": "ed", "REGION": "west"}},
         {"topic": "test_topic", "key": 2, "value": {"ID": 2, "NAME": "dave", "REGION": "west"}},
-        {"topic": "test_topic", "key": 3, "value": null}
+        {"topic": "test_topic", "key": 3, "value:": null}
       ],
       "outputs": [
         {"topic": "COUNT_BY_REGION", "key": "east", "value": null},

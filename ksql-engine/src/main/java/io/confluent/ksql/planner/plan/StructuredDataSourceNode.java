@@ -33,11 +33,13 @@ import io.confluent.ksql.streams.StreamsUtil;
 import io.confluent.ksql.structured.QueryContext;
 import io.confluent.ksql.structured.SchemaKStream;
 import io.confluent.ksql.structured.SchemaKTable;
+import io.confluent.ksql.structured.execution.ExecutionStepProperties;
+import io.confluent.ksql.structured.execution.StreamSource;
+import io.confluent.ksql.structured.execution.TableSource;
 import io.confluent.ksql.util.KsqlConfig;
 import io.confluent.ksql.util.QueryLoggerUtil;
 import io.confluent.ksql.util.SchemaUtil;
 import io.confluent.ksql.util.timestamp.TimestampExtractionPolicy;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -202,15 +204,19 @@ public class StructuredDataSourceNode
           reduceContextStacker.getQueryContext()
       );
       return new SchemaKTable<>(
-          getSchema(),
           kTable,
-          getKeyField(),
-          new ArrayList<>(),
           table.getKeySerde(),
-          SchemaKStream.Type.SOURCE,
           ksqlConfig,
           functionRegistry,
-          contextStacker.getQueryContext()
+          contextStacker.getQueryContext(),
+          new TableSource(
+              new ExecutionStepProperties(
+                  QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
+                  getSchema(),
+                  getKeyField()
+              ),
+              table.getKafkaTopicName()
+          )
       );
     }
 
@@ -218,15 +224,19 @@ public class StructuredDataSourceNode
     final KStream kstream = createKStream(builder, timestampExtractor, genericRowSerde);
 
     return new SchemaKStream<>(
-        getSchema(),
         kstream,
-        getKeyField(),
-        new ArrayList<>(),
         stream.getKeySerde(),
-        SchemaKStream.Type.SOURCE,
         ksqlConfig,
         functionRegistry,
-        contextStacker.getQueryContext()
+        contextStacker.getQueryContext(),
+        new StreamSource(
+            new ExecutionStepProperties(
+                QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
+                getSchema(),
+                getKeyField()
+            ),
+            stream.getKafkaTopicName()
+        )
     );
   }
 

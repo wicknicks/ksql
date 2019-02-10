@@ -23,16 +23,18 @@ import io.confluent.ksql.function.udaf.KudafUndoAggregator;
 import io.confluent.ksql.parser.tree.WindowExpression;
 import io.confluent.ksql.streams.MaterializedFactory;
 import io.confluent.ksql.streams.StreamsUtil;
+import io.confluent.ksql.structured.execution.ExecutionStep;
+import io.confluent.ksql.structured.execution.ExecutionStepProperties;
+import io.confluent.ksql.structured.execution.TableAggregate;
 import io.confluent.ksql.util.KsqlConfig;
 import io.confluent.ksql.util.KsqlException;
+import io.confluent.ksql.util.QueryLoggerUtil;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.connect.data.Field;
-import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.streams.kstream.Initializer;
 import org.apache.kafka.streams.kstream.KGroupedTable;
 import org.apache.kafka.streams.kstream.KTable;
@@ -42,34 +44,32 @@ public class SchemaKGroupedTable extends SchemaKGroupedStream {
   private final KGroupedTable kgroupedTable;
 
   SchemaKGroupedTable(
-      final Schema schema,
       final KGroupedTable kgroupedTable,
-      final Field keyField,
-      final List<SchemaKStream> sourceSchemaKStreams,
       final KsqlConfig ksqlConfig,
-      final FunctionRegistry functionRegistry
+      final FunctionRegistry functionRegistry,
+      final ExecutionStep executionStep
   ) {
     this(
-        schema,
         kgroupedTable,
-        keyField,
-        sourceSchemaKStreams,
         ksqlConfig,
         functionRegistry,
-        MaterializedFactory.create(ksqlConfig));
+        MaterializedFactory.create(ksqlConfig),
+        executionStep);
   }
 
   SchemaKGroupedTable(
-      final Schema schema,
       final KGroupedTable kgroupedTable,
-      final Field keyField,
-      final List<SchemaKStream> sourceSchemaKStreams,
       final KsqlConfig ksqlConfig,
       final FunctionRegistry functionRegistry,
-      final MaterializedFactory materializedFactory
+      final MaterializedFactory materializedFactory,
+      final ExecutionStep executionStep
   ) {
-    super(schema, null, keyField, sourceSchemaKStreams,
-        ksqlConfig, functionRegistry, materializedFactory);
+    super(
+        null,
+        ksqlConfig,
+        functionRegistry,
+        materializedFactory,
+        executionStep);
 
     this.kgroupedTable = Objects.requireNonNull(kgroupedTable, "kgroupedTable");
   }
@@ -121,15 +121,21 @@ public class SchemaKGroupedTable extends SchemaKGroupedStream {
         subtractor,
         materialized);
     return new SchemaKTable<>(
-        schema,
         aggKtable,
-        keyField,
-        sourceSchemaKStreams,
         Serdes.String(),
-        SchemaKStream.Type.AGGREGATE,
         ksqlConfig,
         functionRegistry,
-        contextStacker.getQueryContext()
+        contextStacker.getQueryContext(),
+        new TableAggregate(
+            new ExecutionStepProperties(
+                QueryLoggerUtil.queryLoggerName(contextStacker.getQueryContext()),
+                getSchema(),
+                getKeyField()
+            ),
+            executionStep,
+            aggValToFunctionMap,
+            aggValToValColumnMap
+        )
     );
   }
 }

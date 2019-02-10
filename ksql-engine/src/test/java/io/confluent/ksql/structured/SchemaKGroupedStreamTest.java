@@ -36,10 +36,12 @@ import io.confluent.ksql.parser.tree.WindowExpression;
 import io.confluent.ksql.query.QueryId;
 import io.confluent.ksql.streams.MaterializedFactory;
 import io.confluent.ksql.streams.StreamsUtil;
+import io.confluent.ksql.structured.execution.ExecutionStep;
+import io.confluent.ksql.structured.execution.ExecutionStepProperties;
 import io.confluent.ksql.util.KsqlConfig;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.connect.data.Field;
@@ -68,8 +70,6 @@ public class SchemaKGroupedStreamTest {
   @Mock
   private Field keyField;
   @Mock
-  private List<SchemaKStream> sourceStreams;
-  @Mock
   private KsqlConfig config;
   @Mock
   private FunctionRegistry funcRegistry;
@@ -97,6 +97,10 @@ public class SchemaKGroupedStreamTest {
   private MaterializedFactory materializedFactory;
   @Mock
   private Materialized materialized;
+  @Mock
+  private ExecutionStep executionStep;
+  @Mock
+  private ExecutionStepProperties executionStepProperties;
   private final QueryContext.Stacker queryContext
       = new QueryContext.Stacker(new QueryId("query")).push("node");
   private SchemaKGroupedStream schemaGroupedStream;
@@ -107,7 +111,12 @@ public class SchemaKGroupedStreamTest {
   @Before
   public void setUp() {
     schemaGroupedStream = new SchemaKGroupedStream(
-        schema, groupedStream, keyField, sourceStreams, config, funcRegistry, materializedFactory);
+        groupedStream,
+        config,
+        funcRegistry,
+        materializedFactory,
+        executionStep
+    );
 
     when(windowStartFunc.getFunctionName()).thenReturn("WindowStart");
     when(windowEndFunc.getFunctionName()).thenReturn("WindowEnd");
@@ -117,6 +126,9 @@ public class SchemaKGroupedStreamTest {
     when(config.getBoolean(KsqlConfig.KSQL_WINDOWED_SESSION_KEY_LEGACY_CONFIG)).thenReturn(false);
     when(config.getKsqlStreamConfigProps()).thenReturn(Collections.emptyMap());
     when(materializedFactory.create(any(), any(), any())).thenReturn(materialized);
+    when(executionStep.getProperties()).thenReturn(executionStepProperties);
+    when(executionStepProperties.getSchema()).thenReturn(schema);
+    when(executionStepProperties.getKey()).thenReturn(Optional.of(keyField));
   }
 
   @Test

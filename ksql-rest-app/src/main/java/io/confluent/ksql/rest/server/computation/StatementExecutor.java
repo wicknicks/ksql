@@ -136,6 +136,7 @@ public class StatementExecutor {
                              final CommandStatus status) {
     statusStore.put(commandId, status);
     commandStatusFuture.ifPresent(s -> s.setFinalStatus(status));
+    kafka.server.Defaults.DeleteTopicEnable();
   }
 
   /**
