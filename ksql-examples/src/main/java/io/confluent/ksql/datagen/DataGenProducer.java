@@ -53,41 +53,40 @@ public abstract class DataGenProducer {
 
     final Serializer<GenericRow> serializer = getSerializer(avroSchema, ksqlSchema, kafkaTopicName);
 
-    final KafkaProducer<String, GenericRow> producer = new KafkaProducer<>(
-        props,
-        new StringSerializer(),
-        serializer
-    );
-
     final SessionManager sessionManager = new SessionManager();
     final RowGenerator rowGenerator =
         new RowGenerator(generator, avroData, avroSchema, ksqlSchema, sessionManager, key);
 
-    for (int i = 0; i < messageCount; i++) {
+    try (KafkaProducer<String, GenericRow> producer = new KafkaProducer<>(props,
+        new StringSerializer(),
+        serializer)) {
+      while (true) {
 
-      final Pair<String, GenericRow> genericRowPair = rowGenerator.generateRow();
+        for (int i = 0; i < messageCount; i++) {
 
-      final ProducerRecord<String, GenericRow> producerRecord = new ProducerRecord<>(
-          kafkaTopicName,
-          genericRowPair.getLeft(),
-          genericRowPair.getRight()
-      );
+          final Pair<String, GenericRow> genericRowPair = rowGenerator.generateRow();
 
-      producer.send(producerRecord,
-          new ErrorLoggingCallback(kafkaTopicName,
+          final ProducerRecord<String, GenericRow> producerRecord = new ProducerRecord<>(
+              kafkaTopicName,
               genericRowPair.getLeft(),
-              genericRowPair.getRight()));
+              genericRowPair.getRight()
+          );
 
-      try {
-        final long interval = maxInterval < 0 ? INTER_MESSAGE_MAX_INTERVAL : maxInterval;
+          producer.send(producerRecord,
+              new ErrorLoggingCallback(kafkaTopicName,
+                  genericRowPair.getLeft(),
+                  genericRowPair.getRight()));
 
-        Thread.sleep((long) (interval * Math.random()));
-      } catch (final InterruptedException e) {
-        // Ignore the exception.
+          try {
+            final long interval = maxInterval < 0 ? INTER_MESSAGE_MAX_INTERVAL : maxInterval;
+
+            Thread.sleep((long) (interval * Math.random()));
+          } catch (final InterruptedException e) {
+            // Ignore the exception.
+          }
+        }
       }
     }
-    producer.flush();
-    producer.close();
   }
 
   private static class ErrorLoggingCallback implements Callback {
