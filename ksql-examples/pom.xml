@@ -46,6 +46,12 @@
             <artifactId>kafka-connect-avro-converter</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>monitoring-interceptors</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Required for running tests -->
 
         <dependency>
