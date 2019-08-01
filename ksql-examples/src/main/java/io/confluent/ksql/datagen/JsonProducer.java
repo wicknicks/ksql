@@ -17,6 +17,7 @@
 package io.confluent.ksql.datagen;
 
 import io.confluent.ksql.GenericRow;
+import io.confluent.ksql.serde.GenericRowSerDe.GenericRowSerializer;
 import io.confluent.ksql.serde.json.KsqlJsonSerializer;
 import org.apache.avro.Schema;
 import org.apache.kafka.common.serialization.Serializer;
@@ -29,6 +30,9 @@ public class JsonProducer extends DataGenProducer {
       final org.apache.kafka.connect.data.Schema kafkaSchema,
       final String topicName
   ) {
-    return new KsqlJsonSerializer(kafkaSchema);
+    return new GenericRowSerializer(
+        new KsqlJsonSerializer(kafkaSchema),
+        kafkaSchema
+    );
   }
 }

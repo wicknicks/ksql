@@ -18,12 +18,8 @@ package io.confluent.ksql.datagen;
 
 import io.confluent.connect.avro.AvroData;
 import io.confluent.ksql.GenericRow;
-import io.confluent.ksql.serde.avro.AvroDataTranslator;
-import io.confluent.ksql.serde.avro.AvroSchemaTranslator;
 import io.confluent.ksql.util.KsqlException;
 import io.confluent.ksql.util.Pair;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -40,7 +36,6 @@ import org.apache.kafka.clients.producer.RecordMetadata;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.connect.data.Field;
-import org.apache.kafka.connect.data.SchemaAndValue;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
 public abstract class DataGenProducer {
@@ -63,7 +58,8 @@ public abstract class DataGenProducer {
 
     final AvroData avroData = new AvroData(1);
     org.apache.kafka.connect.data.Schema connectSchema = avroData.toConnectSchema(avroSchema);
-    org.apache.kafka.connect.data.Schema ksqlSchema = new AvroSchemaTranslator().toKsqlSchema(connectSchema);
+    final org.apache.kafka.connect.data.Schema ksqlSchema =
+        DataGenSchemaUtil.getOptionalSchema(connectSchema);
 
     final Serializer<GenericRow> serializer = getSerializer(avroSchema, ksqlSchema, kafkaTopicName);
 
@@ -74,6 +70,8 @@ public abstract class DataGenProducer {
     );
 
     final SessionManager sessionManager = new SessionManager();
+    final RowGenerator rowGenerator =
+        new RowGenerator(generator, avroData, avroSchema, ksqlSchema, sessionManager, key);
 
     int tokens = 0;
 
@@ -85,8 +83,7 @@ public abstract class DataGenProducer {
         tokens -= 1;
       }
 
-      final Pair<String, GenericRow> genericRowPair = generateOneGenericRow(
-          generator, avroData, avroSchema, ksqlSchema, sessionManager, key);
+      final Pair<String, GenericRow> genericRowPair = rowGenerator.generateRow();
 
       final ProducerRecord<String, GenericRow> producerRecord;
       if (timestampGenerator == null) {
@@ -119,72 +116,6 @@ public abstract class DataGenProducer {
     }
     producer.flush();
     producer.close();
-  }
-
-  // For test purpose.
-  protected Pair<String, GenericRow> generateOneGenericRow(
-      final Generator generator,
-      final AvroData avroData,
-      final Schema avroSchema,
-      final org.apache.kafka.connect.data.Schema ksqlSchema,
-      final SessionManager sessionManager,
-      final String key) {
-
-    // generate avro record
-    final Object generatedObject = generator.generate();
-    if (!(generatedObject instanceof GenericRecord)) {
-      throw new RuntimeException(String.format(
-          "Expected Avro Random Generator to return instance of GenericRecord, found %s instead",
-          generatedObject.getClass().getName()
-      ));
-    }
-    final GenericRecord randomAvroMessage = (GenericRecord) generatedObject;
-    SimpleDateFormat timeformatter = null;
-    String sessionisationValue = null;
-    for (final Schema.Field field : avroSchema.getFields()) {
-      final boolean isSession = field.schema().getProp("session") != null;
-      final boolean isSessionSiblingIntHash =
-          field.schema().getProp("session-sibling-int-hash") != null;
-      final String timeFormatFromLong = field.schema().getProp("format_as_time");
-
-      if (isSession) {
-        final String currentValue = (String) randomAvroMessage.get(field.name());
-        final String newCurrentValue = handleSessionisationOfValue(sessionManager, currentValue);
-        sessionisationValue = newCurrentValue;
-        randomAvroMessage.put(field.name(), newCurrentValue);
-      } else if (isSessionSiblingIntHash && sessionisationValue != null) {
-        // super cheeky hack to link int-ids to session-values - if anything fails then we use
-        // the 'avro-gen' randomised version
-        randomAvroMessage.put(
-            field.name(),
-            handleSessionSiblingField(
-                randomAvroMessage,
-                sessionisationValue,
-                field)
-        );
-      } else if (timeFormatFromLong != null) {
-        final Date date = new Date(System.currentTimeMillis());
-        if (timeFormatFromLong.equals("unix_long")) {
-          randomAvroMessage.put(field.name(), date.getTime());
-        } else {
-          if (timeformatter == null) {
-            timeformatter = new SimpleDateFormat(timeFormatFromLong);
-          }
-          randomAvroMessage.put(field.name(), timeformatter.format(date));
-        }
-      }
-    }
-
-    // convert to a ksql row so the serializers can deal with it
-    final AvroDataTranslator dataTranslator = new AvroDataTranslator(ksqlSchema);
-    final SchemaAndValue connectValue = avroData.toConnectData(avroSchema, randomAvroMessage);
-    final GenericRow generatedRow = dataTranslator.toKsqlRow(connectValue.schema(), connectValue.value());
-
-    final String keyString = avroData.toConnectData(
-        randomAvroMessage.getSchema().getField(key).schema(),
-        randomAvroMessage.get(key)).value().toString();
-
-    return new Pair<>(keyString, generatedRow);
   }
 
   private static class ErrorLoggingCallback implements Callback {
@@ -232,12 +163,13 @@ public abstract class DataGenProducer {
   Map<String, Integer> sessionMap = new HashMap<>();
   Set<Integer> allocatedIds = new HashSet<>();
 
+  @SuppressWarnings("unchecked")
   private int mapSessionValueToSibling(final String sessionisationValue, final Schema.Field field) {
 
     if (!sessionMap.containsKey(sessionisationValue)) {
 
-      final LinkedHashMap properties =
-          (LinkedHashMap) field.schema().getObjectProps().get("arg.properties");
+      final LinkedHashMap<Object, Object> properties =
+          (LinkedHashMap<Object, Object>) field.schema().getObjectProps().get("arg.properties");
       final Integer max = (Integer) ((LinkedHashMap) properties.get("range")).get("max");
 
       int vvalue = Math.abs(sessionisationValue.hashCode() % max);
