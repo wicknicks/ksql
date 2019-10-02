@@ -11,5 +11,5 @@ Prerequisites:
          allocation is 2 GB.  You can change the default allocation to 8 GB in **Docker** > **Preferences** > **Advanced**.
      - `Git <https://git-scm.com/downloads>`__.
      - Internet connectivity.
-     - Ensure you are on an :ref:`Operating System<operating-systems>` currently supported by {{ site.cp }}.
+     - Ensure you are on an `Operating System <https://docs.confluent.io/current/installation/versions-interoperability.html>`__ currently supported by {{ site.cp }}.
      - `wget <https://www.gnu.org/software/wget/>`_ to get the connector configuration file.
