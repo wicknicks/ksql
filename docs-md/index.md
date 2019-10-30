@@ -5,8 +5,8 @@ tagline: KSQL
 description: KSQL
 ---
 
-KSQL
-====
+KSQL vNext docs
+===============
 
 What Is ksqlDB?
 ---------------
