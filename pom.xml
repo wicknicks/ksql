@@ -75,6 +75,10 @@
             <id>confluent-snapshots</id>
             <url>https://s3-us-west-2.amazonaws.com/confluent-snapshots/</url>
         </repository>
+        <repository>
+          <id>packaging-beta</id>
+          <url>https://jenkins-confluent-packages-beta-maven.s3-us-west-2.amazonaws.com/5.5.0-beta200204173843/1/maven/</url>
+        </repository>
     </repositories>
 
     <pluginRepositories>
@@ -88,6 +92,10 @@
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
+        </pluginRepository>
+        <pluginRepository>
+          <id>packaging-beta</id>
+          <url>https://jenkins-confluent-packages-beta-maven.s3-us-west-2.amazonaws.com/5.5.0-beta200204173843/1/maven/</url>
         </pluginRepository>
     </pluginRepositories>
 
