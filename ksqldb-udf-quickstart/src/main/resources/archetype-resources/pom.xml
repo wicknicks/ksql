@@ -38,7 +38,7 @@
     <repositories>
         <repository>
             <id>confluent</id>
-            <url>https://packages.confluent.io/maven/</url>
+            <url>https://confluent.jfrog.io/confluent/maven-public/</url>
         </repository>
         <repository>
             <id>ossrh</id>
