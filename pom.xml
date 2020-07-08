@@ -65,6 +65,7 @@
         <module>ksqldb-docker</module>
         <module>ksqldb-api-reactive-streams-tck</module>
         <module>ksqldb-api-client</module>
+        <module>ksqldb-connect</module>
     </modules>
 
     <repositories>
