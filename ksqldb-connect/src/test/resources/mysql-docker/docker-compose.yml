@@ -1,0 +1,20 @@
+# Use root/example as user/password credentials
+version: '3.1'
+
+services:
+
+  db:
+    image: mysql:8.0.20
+    command: --default-authentication-plugin=mysql_native_password
+    restart: always
+    ports:
+      - 3306:3306
+      - 33060:33060
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+
+# client is bundled in this image. to access it, use the following command (with password from above):
+#
+#  docker exec -it mysql-docker_db_1 mysql -p
+#
+#

@@ -11,12 +11,13 @@ import io.confluent.ksql.function.InternalFunctionRegistry;
 import io.confluent.ksql.logging.processing.ProcessingLogContext;
 import io.confluent.ksql.parser.KsqlParser.ParsedStatement;
 import io.confluent.ksql.parser.KsqlParser.PreparedStatement;
+import io.confluent.ksql.parser.tree.CreateConnector;
 import io.confluent.ksql.parser.tree.Query;
-import io.confluent.ksql.parser.tree.SetProperty;
 import io.confluent.ksql.parser.tree.Statement;
-import io.confluent.ksql.parser.tree.UnsetProperty;
-import io.confluent.ksql.properties.PropertyOverrider;
 import io.confluent.ksql.query.id.SequentialQueryIdGenerator;
+import io.confluent.ksql.rest.entity.ErrorEntity;
+import io.confluent.ksql.rest.entity.KsqlEntity;
+import io.confluent.ksql.rest.server.execution.ConnectExecutor;
 import io.confluent.ksql.services.DisabledKsqlClient;
 import io.confluent.ksql.services.ServiceContext;
 import io.confluent.ksql.services.ServiceContextFactory;
@@ -24,6 +25,7 @@ import io.confluent.ksql.statement.ConfiguredStatement;
 import io.confluent.ksql.statement.Injector;
 import io.confluent.ksql.statement.Injectors;
 import io.confluent.ksql.util.KsqlConfig;
+import io.confluent.ksql.util.KsqlServerException;
 import io.confluent.ksql.util.PersistentQueryMetadata;
 import io.confluent.ksql.util.QueryMetadata;
 import java.util.ArrayList;
@@ -35,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
-import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.connect.runtime.AbstractStatus;
@@ -52,6 +53,7 @@ public abstract class BaseIT {
   protected static final long CONNECTOR_STARTUP_DURATION_MS = TimeUnit.SECONDS.toMillis(60);
 
   protected EmbeddedConnectCluster connect;
+  protected SchemaRegistryCluster sr;
 
   protected KsqlEngine ksqlEngine;
   private ServiceContext serviceContext;
@@ -63,6 +65,11 @@ public abstract class BaseIT {
 
     // start the clusters
     connect.start();
+
+    // ideally, we should start SR _before_ Connect, but we need to set up Connect before
+    // to get the broker server address.
+    sr = new SchemaRegistryCluster(connect.kafka().bootstrapServers());
+    sr.start();
   }
 
   protected void startKsql() {
@@ -82,6 +89,7 @@ public abstract class BaseIT {
   private KsqlConfig ksqlConfig() {
     Map<String, String> config = new HashMap<>();
     config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, connect.kafka().bootstrapServers());
+    config.put(KsqlConfig.CONNECT_URL_PROPERTY, connect.endpointForResource(""));
     return new KsqlConfig(config);
   }
 
@@ -96,23 +104,20 @@ public abstract class BaseIT {
     ksqlEngine.execute(serviceContext, cs);
   }
 
-  private final BiFunction<KsqlExecutionContext, ServiceContext, Injector> injectorFactory = Injectors.DEFAULT;
-
   public QueryMetadata runKsqlQuery(String sql) {
     final PreparedStatement<?> prepared = ksqlEngine.prepare(ksqlEngine.parse(sql).get(0));
 
-    final Injector injector = injectorFactory.apply(ksqlEngine, serviceContext);
+    final Injector injector = Injectors.DEFAULT.apply(ksqlEngine, serviceContext);
     final ConfiguredStatement<?> configured = injector.inject(ConfiguredStatement.of(
         prepared,
         emptyMap(),
         ksqlConfig()
     ));
 
-    final CustomExecutor executor =
-        CustomExecutors.EXECUTOR_MAP.getOrDefault(
-            configured.getStatement().getClass(),
-            (passedExecutionContext, s, props) -> passedExecutionContext.execute(
-                passedExecutionContext.getServiceContext(), s));
+    final CustomExecutor executor = CustomExecutors.EXECUTOR_MAP.getOrDefault(
+        configured.getStatement().getClass(),
+        CustomExecutors.DEFAULT.getExecutor()
+    );
 
     ExecuteResult result = executor.apply(
         ksqlEngine,
@@ -133,7 +138,11 @@ public abstract class BaseIT {
       }
     }
 
-    return queries.get(0);
+    if (queries.size() > 0) {
+      return queries.get(0);
+    } else {
+      return null;
+    }
   }
 
   @FunctionalInterface
@@ -147,19 +156,28 @@ public abstract class BaseIT {
 
   @SuppressWarnings("unchecked, unused")
   private enum CustomExecutors {
-
-    SET_PROPERTY(SetProperty.class, (executionContext, stmt, props) -> {
-      PropertyOverrider.set((ConfiguredStatement<SetProperty>) stmt, props);
-      return ExecuteResult.of("Successfully executed " + stmt.getStatement());
-    }),
-    UNSET_PROPERTY(UnsetProperty.class, (executionContext, stmt, props) -> {
-      PropertyOverrider.unset((ConfiguredStatement<UnsetProperty>) stmt, props);
-      return ExecuteResult.of("Successfully executed " + stmt.getStatement());
-    }),
     QUERY(Query.class, (executionContext, stmt, props) -> {
       return ExecuteResult.of(
           executionContext.executeQuery(executionContext.getServiceContext(), stmt.cast()));
-    })
+    }),
+    CONNECTOR(CreateConnector.class, (executionContext, stmt, props) -> {
+      KsqlEntity result = ConnectExecutor.execute(
+          (ConfiguredStatement<CreateConnector>) stmt,
+          null,
+          executionContext,
+          executionContext.getServiceContext())
+          .orElse(new ErrorEntity("create connector", "invalid return"));
+      if (result instanceof ErrorEntity) {
+        String error = String.format(
+            "Error in creating connector %s",
+            ((ErrorEntity) result).getErrorMessage().replace("\\n", "\n")
+        );
+        throw new KsqlServerException(error);
+      } else {
+        return ExecuteResult.of(String.valueOf(result.toString()));
+      }
+    }),
+    DEFAULT(Statement.class, (context, stmt, props) -> context.execute(context.getServiceContext(), stmt))
     ;
 
     public static final Map<Class<? extends Statement>, CustomExecutor> EXECUTOR_MAP =
@@ -200,6 +218,9 @@ public abstract class BaseIT {
   }
 
   protected void stopConnect() {
+    // shutdown SR
+    sr.start();
+
     // stop all Connect, Kafka and Zk threads.
     connect.stop();
   }
